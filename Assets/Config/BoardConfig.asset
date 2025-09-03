@@ -1,0 +1,23 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 60e3d96b5677b424a87449637c291c31, type: 3}
+  m_Name: BoardConfig
+  m_EditorClassIdentifier: 
+  rows: 5
+  cols: 1
+  maxInitialVisible: 2
+  maxInitialWaiting: 3
+  ensureAllTriples: 1
+  itemDatabase: {fileID: 11400000, guid: f06020db70fbb39448a038bf3d6e15aa, type: 2}
+  enableHaptics: 1
+  matchHapticDurationMs: 10
+  matchHapticAmplitude: 32
