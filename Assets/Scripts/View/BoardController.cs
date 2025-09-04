@@ -1,5 +1,6 @@
 
 using UnityEngine;
+using System.Collections.Generic;
 
 public class BoardController : MonoBehaviour
 {
@@ -12,6 +13,12 @@ public class BoardController : MonoBehaviour
     [SerializeField] private Transform worldParent;
     [SerializeField] private float cellSize = 1.5f;
 
+
+    [Header("Match")]
+    [SerializeField] private MatchAnimator matchAnimator;
+    [SerializeField] private GoalManager goalManager;
+    [SerializeField] private int levelIndex = 1; // or wherever you store it
+
     private BoardModel _board;
     private CellView2D[] _views;
     private ItemBag _bag;
@@ -20,6 +27,10 @@ public class BoardController : MonoBehaviour
     {
         InitBoard();
         InitViews();
+
+        // Important: build goals UI before spawning & allowing matches
+        if (goalManager != null)
+            goalManager.InitGoals(levelIndex);
 
         _bag = new ItemBag(itemLibrary.Database);
         BoardGenerator.Generate(_board, config, _bag);
@@ -45,19 +56,16 @@ public class BoardController : MonoBehaviour
             }
         }
     }
-
     public bool TryMoveVisible(int fromCell, int fromSlot, int toCell, int toSlot)
     {
         var src = _board.Cell(fromCell);
         var dst = _board.Cell(toCell);
-        if (fromSlot < 0 || fromSlot >= 3 || toSlot < 0 || toSlot >= 3) return false;
         if (src.visible[fromSlot] == -1) return false;
 
         int moving = src.visible[fromSlot];
         int target = dst.visible[toSlot];
-
-        // Move or swap
         src.visible[fromSlot] = -1; src.visibleCount--;
+
         if (target == -1)
         {
             dst.visible[toSlot] = moving; dst.visibleCount++;
@@ -68,16 +76,10 @@ public class BoardController : MonoBehaviour
             src.visible[fromSlot] = target; src.visibleCount++;
         }
 
-        // Fully resolve both cells (cascade clears and pulls)
-        bool a = MatchSystem.ResolveCellFully(src);
-        bool b = MatchSystem.ResolveCellFully(dst);
-
-        if ((a || b) && config.enableHaptics)
-            Haptics.MatchBuzz(config.matchHapticDurationMs, config.matchHapticAmplitude);
-
-        // Refresh views
-        _views[fromCell].Bind(src, itemLibrary.GetSprite);
-        if (toCell != fromCell) _views[toCell].Bind(dst, itemLibrary.GetSprite);
+        // check matches in both cells
+        CheckMatches(src, _views[fromCell]);
+        if (toCell != fromCell)
+            CheckMatches(dst, _views[toCell]);
 
         return true;
     }
@@ -87,4 +89,58 @@ public class BoardController : MonoBehaviour
         for (int i = 0; i < _views.Length; i++)
             _views[i].Bind(_board.Cell(i), itemLibrary.GetSprite);
     }
+
+
+    private void HandleMatch(CellModel cell, CellView2D view, int matchId)
+    {
+        var matchedSRs = new List<SpriteRenderer>(view.visibleSR);
+
+        // Convert the goal UI icon to a WORLD position
+        Vector3 targetWorld = (goalManager != null)
+            ? goalManager.GetGoalWorldPosition(matchId)
+            : view.transform.position; // safe fallback
+
+        StartCoroutine(matchAnimator.AnimateMatchTo(matchedSRs, targetWorld, () =>
+        {
+            cell.ClearVisible();
+            cell.PullFromWaitingToVisibleOnce();
+            view.Bind(cell, itemLibrary.GetSprite);
+
+            if (goalManager != null)
+                goalManager.OnMatch(matchId, 3);
+
+            // In case the pull created a new triple, resolve again
+            CheckMatches(cell, view);
+        }));
+    }
+
+    private void CheckMatches(CellModel cell, CellView2D view)
+    {
+        if (MatchSystem.TryGetMatch(cell, out int matchId))
+        {
+            var matchedSRs = new List<SpriteRenderer>(view.visibleSR);
+
+            Vector3 targetWorld = goalManager != null
+                ? goalManager.GetGoalWorldPosition(matchId)
+                : view.transform.position;
+
+            StartCoroutine(matchAnimator.AnimateMatchTo(matchedSRs, targetWorld, () =>
+            {
+                cell.ClearVisible();
+                cell.PullFromWaitingToVisibleOnce();
+                view.Bind(cell, itemLibrary.GetSprite);
+                if (goalManager != null) goalManager.OnMatch(matchId, 3);
+
+                // cascade check in case a new triple formed
+                CheckMatches(cell, view);
+            }));
+        }
+        else
+        {
+            view.Bind(cell, itemLibrary.GetSprite);
+        }
+    }
+
+
+
 }

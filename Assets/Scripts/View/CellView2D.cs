@@ -4,11 +4,8 @@ using UnityEngine;
 [RequireComponent(typeof(BoxCollider2D))]
 public class CellView2D : MonoBehaviour
 {
-    [Header("Visible slots (3)")]
     public SpriteRenderer[] visibleSR = new SpriteRenderer[3];
-    public BoxCollider2D[]  visibleHotspots = new BoxCollider2D[3];
-
-    [Header("Waiting slots (3) - non interactable")]
+    public BoxCollider2D[] visibleHotspots = new BoxCollider2D[3];
     public SpriteRenderer[] waitingSR = new SpriteRenderer[3];
 
     [HideInInspector] public int cellIndex;
@@ -21,13 +18,13 @@ public class CellView2D : MonoBehaviour
         {
             bool has = model.visible[i] != -1;
             visibleSR[i].enabled = has;
-            visibleSR[i].sprite  = has ? getSprite(model.visible[i]) : null;
+            visibleSR[i].sprite = has ? getSprite(model.visible[i]) : null;
         }
-        for (int i = 0; i < 3; i++)
+        for (int i = 0; i < waitingSR.Length; i++)
         {
-            bool has = model.waiting[i] != -1;
+            bool has = i < model.waitingCount;
             waitingSR[i].enabled = has;
-            waitingSR[i].sprite  = has ? getSprite(model.waiting[i]) : null;
+            waitingSR[i].sprite = has ? getSprite(model.waitingQueue[i]) : null;
         }
     }
 }

@@ -1,3 +1,4 @@
+
 using UnityEngine;
 using System.Collections.Generic;
 
@@ -5,88 +6,97 @@ public static class BoardGenerator
 {
     public static void Generate(BoardModel board, BoardConfig cfg, ItemBag bag)
     {
-        var visibleCaps = new int[board.cells.Length];
-        var waitingCaps = new int[board.cells.Length];
-        for (int i = 0; i < board.cells.Length; i++)
+        int cellCount = board.cells.Length;
+        var visibleCaps = new int[cellCount];
+        var waitingCaps = new int[cellCount];
+        for (int i = 0; i < cellCount; i++)
         {
             visibleCaps[i] = Mathf.Clamp(cfg.maxInitialVisible, 0, 3);
-            waitingCaps[i] = Mathf.Clamp(cfg.maxInitialWaiting, 0, 3);
+            waitingCaps[i] = cfg.waitingMaxDepth;
         }
 
         List<int> pairableCells = new List<int>();
-        for (int i = 0; i < board.cells.Length; i++)
+        for (int i = 0; i < cellCount; i++)
             if (visibleCaps[i] >= 2) pairableCells.Add(i);
 
-        List<(int cell, bool isVisible)> thirdSpots = new List<(int, bool)>();
-        for (int i = 0; i < board.cells.Length; i++)
-        {
-            for (int v = 0; v < visibleCaps[i]; v++) thirdSpots.Add((i, true));
-            for (int w = 0; w < waitingCaps[i]; w++) thirdSpots.Add((i, false));
-        }
+        int totalThirdSpots = 0;
+        for (int i = 0; i < cellCount; i++)
+            totalThirdSpots += visibleCaps[i] + waitingCaps[i];
 
-        int maxTriplesByPairs = pairableCells.Count;
-        int totalThirdSpots = thirdSpots.Count;
-        int maxTriplesByThirds = totalThirdSpots - (2 * maxTriplesByPairs) > 0 
-            ? Mathf.Min(maxTriplesByPairs, (totalThirdSpots) / 3) 
-            : Mathf.Min(maxTriplesByPairs, totalThirdSpots / 3);
-
-        int triplesToPlace = Mathf.Min(maxTriplesByPairs, maxTriplesByThirds);
-        if (triplesToPlace <= 0) return;
+        int maxTriples = Mathf.Min(pairableCells.Count, totalThirdSpots / 3);
+        if (maxTriples <= 0) return;
 
         Shuffle(pairableCells);
-        Shuffle(thirdSpots);
-
-        int thirdIndex = 0;
-        for (int t = 0; t < triplesToPlace; t++)
+        int placed = 0;
+        foreach (var pairCellIdx in pairableCells)
         {
-            int cellIdx = pairableCells[t];
-            var cell = board.cells[cellIdx];
+            if (placed >= maxTriples) break;
+            var cellA = board.cells[pairCellIdx];
+            if (visibleCaps[pairCellIdx] < 2) continue;
 
             int itemId = cfg.itemDatabase.RandomId();
-
             List<int> visSlots = new List<int> { 0, 1, 2 };
             Shuffle(visSlots);
-            for (int k = 0; k < 2; k++)
-                cell.PlaceVisibleAt(visSlots[k], itemId);
-            visibleCaps[cellIdx] -= 2;
+            cellA.PlaceVisibleAt(visSlots[0], itemId);
+            cellA.PlaceVisibleAt(visSlots[1], itemId);
+            visibleCaps[pairCellIdx] -= 2;
 
-            (int cell, bool isVisible) spot = (-1, false);
-            for (; thirdIndex < thirdSpots.Count; thirdIndex++)
-            {
-                var s = thirdSpots[thirdIndex];
-                if (s.cell == cellIdx && s.isVisible && visibleCaps[cellIdx] <= 0) continue;
-                if (s.isVisible && visibleCaps[s.cell] <= 0) continue;
-                if (!s.isVisible && waitingCaps[s.cell] <= 0) continue;
+            if (!TryPlaceThird(board, cfg, itemId, visibleCaps, waitingCaps, true))
+                TryPlaceThird(board, cfg, itemId, visibleCaps, waitingCaps, false);
 
-                spot = s;
-                thirdIndex++;
-                break;
-            }
-            if (spot.cell == -1)
+            placed++;
+        }
+    }
+
+    private static bool TryPlaceThird(BoardModel board, BoardConfig cfg, int itemId,
+                                      int[] visibleCaps, int[] waitingCaps, bool preferVisible)
+    {
+        int cellCount = board.cells.Length;
+        if (preferVisible)
+        {
+            for (int i = 0; i < cellCount; i++)
             {
-                for (int i = 0; i < thirdSpots.Count; i++)
+                if (visibleCaps[i] <= 0) continue;
+                var cell = board.cells[i];
+                for (int s = 0; s < 3; s++)
                 {
-                    var s = thirdSpots[i];
-                    if (s.isVisible && visibleCaps[s.cell] <= 0) continue;
-                    if (!s.isVisible && waitingCaps[s.cell] <= 0) continue;
-                    spot = s; thirdIndex = i + 1; break;
+                    if (cell.visible[s] == -1)
+                    {
+                        cell.PlaceVisibleAt(s, itemId);
+                        visibleCaps[i]--;
+                        return true;
+                    }
                 }
             }
-            if (spot.cell == -1) break;
-
-            var cellB = board.cells[spot.cell];
-            if (spot.isVisible)
+        }
+        for (int i = 0; i < cellCount; i++)
+        {
+            if (waitingCaps[i] <= 0) continue;
+            var cell = board.cells[i];
+            if (cell.EnqueueWaiting(itemId, cfg.waitingMaxDepth))
             {
-                for (int i = 0; i < 3; i++)
-                    if (cellB.visible[i] == -1) { cellB.PlaceVisibleAt(i, itemId); break; }
-                visibleCaps[spot.cell]--;
-            }
-            else
-            {
-                cellB.EnqueueWaiting(itemId);
-                waitingCaps[spot.cell]--;
+                waitingCaps[i]--;
+                return true;
             }
         }
+        if (!preferVisible)
+        {
+            for (int i = 0; i < cellCount; i++)
+            {
+                if (visibleCaps[i] <= 0) continue;
+                var cell = board.cells[i];
+                for (int s = 0; s < 3; s++)
+                {
+                    if (cell.visible[s] == -1)
+                    {
+                        cell.PlaceVisibleAt(s, itemId);
+                        visibleCaps[i]--;
+                        return true;
+                    }
+                }
+            }
+        }
+        return false;
     }
 
     private static void Shuffle<T>(IList<T> list)

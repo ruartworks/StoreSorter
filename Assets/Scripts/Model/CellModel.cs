@@ -1,18 +1,20 @@
 
 using System;
+using System.Collections.Generic;
 
 [Serializable]
 public class CellModel
 {
     public int[] visible = new int[3];
     public int visibleCount;
-    public int[] waiting = new int[3];
-    public int waitingCount;
+    public List<int> waitingQueue = new List<int>();
+    public int waitingCount => waitingQueue.Count;
 
     public CellModel()
     {
-        for (int i = 0; i < 3; i++) { visible[i] = -1; waiting[i] = -1; }
-        visibleCount = 0; waitingCount = 0;
+        for (int i = 0; i < 3; i++) visible[i] = -1;
+        visibleCount = 0;
+        waitingQueue.Clear();
     }
 
     public bool PlaceVisibleAt(int slot, int itemId)
@@ -50,36 +52,26 @@ public class CellModel
         visibleCount = 0;
     }
 
-    public void EnqueueWaiting(int itemId)
+    public bool EnqueueWaiting(int itemId, int maxDepth)
     {
-        if (waitingCount >= 3) return;
-        for (int i = 0; i < 3; i++)
-        {
-            if (waiting[i] == -1)
-            {
-                waiting[i] = itemId;
-                waitingCount++;
-                return;
-            }
-        }
+        if (waitingQueue.Count >= maxDepth) return false;
+        waitingQueue.Add(itemId);
+        return true;
     }
 
     public bool DequeueWaiting(out int itemId)
     {
         itemId = -1;
-        if (waitingCount == 0) return false;
-        itemId = waiting[0];
-        waiting[0] = waiting[1];
-        waiting[1] = waiting[2];
-        waiting[2] = -1;
-        waitingCount--;
+        if (waitingQueue.Count == 0) return false;
+        itemId = waitingQueue[0];
+        waitingQueue.RemoveAt(0);
         return true;
     }
 
     public bool PullFromWaitingToVisibleOnce()
     {
         bool moved = false;
-        for (int i = 0; i < 3 && visibleCount < 3 && waitingCount > 0; i++)
+        for (int i = 0; i < 3 && visibleCount < 3 && waitingQueue.Count > 0; i++)
         {
             if (visible[i] == -1 && DequeueWaiting(out int id))
             {
