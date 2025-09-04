@@ -4,20 +4,16 @@ using System.Collections.Generic;
 
 public class BoardController : MonoBehaviour
 {
-    [Header("Config & Library")]
     [SerializeField] private BoardConfig config;
     [SerializeField] private ItemLibrary itemLibrary;
-
-    [Header("Prefabs & Layout")]
     [SerializeField] private CellView2D cellPrefab2D;
     [SerializeField] private Transform worldParent;
     [SerializeField] private float cellSize = 1.5f;
 
-
-    [Header("Match")]
-    [SerializeField] private MatchAnimator matchAnimator;
+    [Header("Systems")]
     [SerializeField] private GoalManager goalManager;
-    [SerializeField] private int levelIndex = 1; // or wherever you store it
+    [SerializeField] private MatchAnimator matchAnimator;
+    [SerializeField] private int levelIndex = 1;
 
     private BoardModel _board;
     private CellView2D[] _views;
@@ -28,12 +24,12 @@ public class BoardController : MonoBehaviour
         InitBoard();
         InitViews();
 
-        // Important: build goals UI before spawning & allowing matches
-        if (goalManager != null)
-            goalManager.InitGoals(levelIndex);
-
         _bag = new ItemBag(itemLibrary.Database);
         BoardGenerator.Generate(_board, config, _bag);
+
+        var spawnCounts = CountSpawnedItems();
+        if (goalManager != null)
+            goalManager.InitGoalsFromSpawn(spawnCounts, levelIndex);
 
         RefreshAllViews();
     }
@@ -56,6 +52,26 @@ public class BoardController : MonoBehaviour
             }
         }
     }
+
+    private Dictionary<int, int> CountSpawnedItems()
+    {
+        var dict = new Dictionary<int, int>();
+        foreach (var cell in _board.cells)
+        {
+            for (int i = 0; i < 3; i++)
+            {
+                if (cell.visible[i] != -1)
+                {
+                    int id = cell.visible[i];
+                    dict[id] = dict.ContainsKey(id) ? dict[id] + 1 : 1;
+                }
+            }
+            foreach (var id in cell.waitingQueue)
+                dict[id] = dict.ContainsKey(id) ? dict[id] + 1 : 1;
+        }
+        return dict;
+    }
+
     public bool TryMoveVisible(int fromCell, int fromSlot, int toCell, int toSlot)
     {
         var src = _board.Cell(fromCell);
@@ -76,42 +92,10 @@ public class BoardController : MonoBehaviour
             src.visible[fromSlot] = target; src.visibleCount++;
         }
 
-        // check matches in both cells
         CheckMatches(src, _views[fromCell]);
-        if (toCell != fromCell)
-            CheckMatches(dst, _views[toCell]);
+        if (toCell != fromCell) CheckMatches(dst, _views[toCell]);
 
         return true;
-    }
-
-    public void RefreshAllViews()
-    {
-        for (int i = 0; i < _views.Length; i++)
-            _views[i].Bind(_board.Cell(i), itemLibrary.GetSprite);
-    }
-
-
-    private void HandleMatch(CellModel cell, CellView2D view, int matchId)
-    {
-        var matchedSRs = new List<SpriteRenderer>(view.visibleSR);
-
-        // Convert the goal UI icon to a WORLD position
-        Vector3 targetWorld = (goalManager != null)
-            ? goalManager.GetGoalWorldPosition(matchId)
-            : view.transform.position; // safe fallback
-
-        StartCoroutine(matchAnimator.AnimateMatchTo(matchedSRs, targetWorld, () =>
-        {
-            cell.ClearVisible();
-            cell.PullFromWaitingToVisibleOnce();
-            view.Bind(cell, itemLibrary.GetSprite);
-
-            if (goalManager != null)
-                goalManager.OnMatch(matchId, 3);
-
-            // In case the pull created a new triple, resolve again
-            CheckMatches(cell, view);
-        }));
     }
 
     private void CheckMatches(CellModel cell, CellView2D view)
@@ -119,19 +103,14 @@ public class BoardController : MonoBehaviour
         if (MatchSystem.TryGetMatch(cell, out int matchId))
         {
             var matchedSRs = new List<SpriteRenderer>(view.visibleSR);
-
-            Vector3 targetWorld = goalManager != null
-                ? goalManager.GetGoalWorldPosition(matchId)
-                : view.transform.position;
+            Vector3 targetWorld = goalManager != null ? goalManager.GetGoalWorldPosition(matchId) : view.transform.position;
 
             StartCoroutine(matchAnimator.AnimateMatchTo(matchedSRs, targetWorld, () =>
             {
                 cell.ClearVisible();
                 cell.PullFromWaitingToVisibleOnce();
                 view.Bind(cell, itemLibrary.GetSprite);
-                if (goalManager != null) goalManager.OnMatch(matchId, 3);
-
-                // cascade check in case a new triple formed
+                if (goalManager != null) goalManager.OnMatch(matchId);
                 CheckMatches(cell, view);
             }));
         }
@@ -141,6 +120,12 @@ public class BoardController : MonoBehaviour
         }
     }
 
-
+    private void RefreshAllViews()
+    {
+        for (int i = 0; i < _views.Length; i++)
+        {
+            _views[i].Bind(_board.cells[i], itemLibrary.GetSprite);
+        }
+    }
 
 }

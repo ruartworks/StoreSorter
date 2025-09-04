@@ -570,7 +570,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   m_Material: {fileID: 0}
-  m_Color: {r: 1, g: 1, b: 1, a: 1}
+  m_Color: {r: 1, g: 1, b: 1, a: 0}
   m_RaycastTarget: 1
   m_RaycastPadding: {x: 0, y: 0, z: 0, w: 0}
   m_Maskable: 1
@@ -1061,6 +1061,10 @@ MonoBehaviour:
   itemLibrary: {fileID: 1304235196}
   goalsUIParent: {fileID: 863378146}
   goalPrefab: {fileID: 8169591645770944671, guid: 6005555fee6f66c42855258955fabe14, type: 3}
+  uiCamera: {fileID: 0}
+  worldCamera: {fileID: 1080000571}
+  worldPlane: {fileID: 19252}
+  fallbackPlaneZ: -0.1
   genericGoalTarget: {fileID: 863378146}
 --- !u!1 &1578067496
 GameObject:
@@ -1382,6 +1386,12 @@ MonoBehaviour:
     m_RotationOrder: 4
   travelDuration: 0.6
   matchPfxPrefab: {fileID: 3610965596521904076, guid: 7b219e3b0f5a03d458c3daaaebd4bb36, type: 3}
+  pfxLifetime: 1.2
+  pickScale: 1.2
+  dropPopScale: 1.3
+  pickDropDuration: 0.12
+  preHighlightDuration: 0.15
+  preHighlightScale: 1.1
 --- !u!1 &1875021488
 GameObject:
   m_ObjectHideFlags: 0
@@ -1436,8 +1446,9 @@ MonoBehaviour:
   cellPrefab2D: {fileID: 4838745441710142859, guid: e701362ca2f2fb448ba3ab7ad7fbf348, type: 3}
   worldParent: {fileID: 19252}
   cellSize: 1.8
-  matchAnimator: {fileID: 1823745533}
   goalManager: {fileID: 1326487605}
+  matchAnimator: {fileID: 1823745533}
+  levelIndex: 50
 --- !u!1001 &4808625754983704244
 PrefabInstance:
   m_ObjectHideFlags: 0

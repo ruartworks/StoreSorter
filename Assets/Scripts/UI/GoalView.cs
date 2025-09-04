@@ -1,3 +1,4 @@
+
 using UnityEngine;
 using UnityEngine.UI;
 using TMPro;
@@ -9,14 +10,14 @@ public class GoalView : MonoBehaviour
 
     public RectTransform IconRect => icon.rectTransform;
 
-    public void Bind(Sprite sprite, int current, int target)
+    public void Bind(Sprite sprite, int remaining)
     {
         icon.sprite = sprite;
-        UpdateProgress(current, target);
+        UpdateRemaining(remaining);
     }
 
-    public void UpdateProgress(int current, int target)
+    public void UpdateRemaining(int remaining)
     {
-        progressText.text = $"{current}/{target}";
+        progressText.text = remaining.ToString();// + " left"
     }
 }
